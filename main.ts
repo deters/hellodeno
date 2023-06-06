@@ -2,149 +2,45 @@ import yargs from "https://deno.land/x/yargs/deno.ts"
 
 import * as Mustache from "https://deno.land/x/mustache/mod.ts"
 import moment from "npm:moment-timezone"
-//import * as ical2json from "npm:ical2json"
+import * as ical2json from "npm:ical2json"
 import * as path from "https://deno.land/std/path/mod.ts"
 
-// Make sure lines are splited correctly
-// http://stackoverflow.com/questions/1155678/javascript-string-newline-character
-const NEW_LINE = /\r\n|\n|\r/
-const COLON = ":"
-// const COMMA = ",";
-// const DQUOTE = "\"";
-// const SEMICOLON = ";";
-const SPACE = " "
+if (import.meta.main) {
+  try {
+    const argv = await getCommandLineArguments()
 
-export interface IcalObject {
-  [key: string]: string | string[] | IcalObject[]
-}
+    if (argv.calendar) {
+      let calendar_file = argv.calendar
+      let input_file = calendar_file
 
-/**
- * Take ical string data and convert to JSON
- */
-function convert(source: string): IcalObject {
-  const output: IcalObject = {}
-  const lines = source.split(NEW_LINE)
+      console.log(`Processing calendar: "${calendar_file}"`)
 
-  let parentObj: IcalObject = {}
-  let currentObj: IcalObject = output
-  const parents: IcalObject[] = []
+      let calendar_view = await parseCalendarFromFile(input_file)
+      let output_file = `${argv.outputdir}/${path.parse(input_file).name}.html`
+      let force = argv.force || false
+      let template_dir = argv.templatedir
+      let open = argv.open
 
-  let currentKey = ""
+      let template_file = `${template_dir}/${calendar_view.template}.${calendar_view.lang}.html`
+      await renderOutput(calendar_view, template_file, output_file, force)
 
-  for (let i = 0; i < lines.length; i++) {
-    let currentValue = ""
+      console.log(calendar_view)
 
-    const line = lines[i]
-    if (line.charAt(0) === SPACE) {
-      currentObj[currentKey] += line.substr(1)
-    } else {
-      const splitAt = line.indexOf(COLON)
+      console.log(`Output file: ${output_file}`)
 
-      if (splitAt < 0) {
-        continue
-      }
-
-      currentKey = line.substr(0, splitAt)
-      currentValue = line.substr(splitAt + 1)
-
-      switch (currentKey) {
-        case "BEGIN":
-          parents.push(parentObj)
-          parentObj = currentObj
-          if (parentObj[currentValue] == null) {
-            parentObj[currentValue] = []
-          }
-          // Create a new object, store the reference for future uses
-          currentObj = {}
-          ;(parentObj[currentValue] as IcalObject[]).push(currentObj)
-          break
-        case "END":
-          currentObj = parentObj
-          parentObj = parents.pop() as IcalObject
-          break
-        default:
-          if (currentObj[currentKey]) {
-            if (!Array.isArray(currentObj[currentKey])) {
-              currentObj[currentKey] = [currentObj[currentKey]] as string[]
-            }
-            ;(currentObj[currentKey] as string[]).push(currentValue)
-          } else {
-            ;(currentObj[currentKey] as string) = currentValue
-          }
-      }
-    }
-  }
-  return output
-}
-
-/**
- * Take JSON, revert back to ical
- */
-function revert(object: IcalObject): string {
-  const lines = []
-
-  for (const key in object) {
-    const value = object[key]
-    if (Array.isArray(value)) {
-      if (key === "RDATE") {
-        ;(value as string[]).forEach((item: string) => {
-          lines.push(key + ":" + item)
+      if (argv.open) {
+        const p = Deno.run({
+          cmd: ["open", output_file],
         })
-      } else {
-        ;(value as IcalObject[]).forEach((item: IcalObject) => {
-          lines.push("BEGIN:" + key)
-          lines.push(revert(item))
-          lines.push("END:" + key)
-        })
+        const status = await p.status()
       }
-    } else {
-      let fullLine = key + ":" + value
-      do {
-        // According to ical spec, lines of text should be no longer
-        // than 75 octets
-        lines.push(fullLine.substr(0, 75))
-        fullLine = SPACE + fullLine.substr(75)
-      } while (fullLine.length > 1)
     }
+
+    console.log("😼\n")
+    //console.log(Cat.getCat())
+  } catch (error: any) {
+    console.log(error)
   }
-
-  return lines.join("\n")
-}
-
-try {
-  const argv = await getCommandLineArguments()
-
-  if (argv.calendar) {
-    let calendar_file = argv.calendar
-    let input_file = calendar_file
-
-    console.log(`Processing calendar: "${calendar_file}"`)
-
-    let calendar_view = await parseCalendarFromFile(input_file)
-    let output_file = `${argv.outputdir}/${path.parse(input_file).name}.html`
-    let force = argv.force || false
-    let template_dir = argv.templatedir
-    let open = argv.open
-
-    let template_file = `${template_dir}/${calendar_view.template}.${calendar_view.lang}.html`
-    await renderOutput(calendar_view, template_file, output_file, force)
-
-    console.log(calendar_view)
-
-    console.log(`Output file: ${output_file}`)
-
-    if (argv.open) {
-      const p = Deno.run({
-        cmd: ["open", output_file],
-      })
-      const status = await p.status()
-    }
-  }
-
-  console.log("😼\n")
-  //console.log(Cat.getCat())
-} catch (error: any) {
-  console.log(error)
 }
 
 async function getCommandLineArguments() {
@@ -224,7 +120,7 @@ async function readFile(template_file: string): Promise<string> {
 async function parseCalendarFromFile(calendar_filename: string) {
   let ics_content = await readFile(calendar_filename)
 
-  const json_content = convert(ics_content)
+  const json_content = ical2json.convert(ics_content)
 
   const event_list = json_content.VCALENDAR[0].VEVENT
 
