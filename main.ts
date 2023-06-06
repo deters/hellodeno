@@ -212,14 +212,6 @@ async function renderOutput(
 
   let template = await readFile(template_file)
   let rendered_template = Mustache.render(template, calendar_view)
-  let unredered_lines = rendered_template.split("\n").filter((v) => {
-    return /{{.*}}/.test(v)
-  })
-  if (!unredered_lines.length) {
-    console.log("Missing tags:")
-    console.log(unredered_lines)
-  }
-
   await Deno.writeTextFile(output_file, rendered_template)
 }
 
