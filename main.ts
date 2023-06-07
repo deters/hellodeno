@@ -4,6 +4,7 @@ import * as Mustache from "https://deno.land/x/mustache/mod.ts"
 import moment from "npm:moment-timezone"
 import * as ical2json from "npm:ical2json"
 import * as path from "https://deno.land/std/path/mod.ts"
+import { assert } from "https://deno.land/std@0.190.0/testing/asserts.ts"
 
 if (import.meta.main) {
   try {
@@ -11,6 +12,7 @@ if (import.meta.main) {
 
     if (argv.calendar) {
       let calendar_file = argv.calendar
+      assert(calendar_file, "calendar file is empty")
       let input_file = calendar_file
 
       console.log(`Processing calendar: "${calendar_file}"`)
